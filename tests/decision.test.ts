@@ -93,6 +93,29 @@ test("Entra auth obtains a bearer token without forwarding an API key", async ()
   assert.equal(tokenCalls, 2);
 });
 
+test("Entra auth requests the endpoint-specific scope from the credential", async () => {
+  for (const [endpoint, expectedScope] of [
+    ["https://example.services.ai.azure.com/", "https://cognitiveservices.azure.com/.default"],
+    ["https://example.centralus.inference.ml.azure.com/", "https://ml.azure.com/.default"],
+  ]) {
+    let requestedScope: string | string[] | undefined;
+    const provider = new FoundryDecisionProvider({
+      ...config, endpoint, auth: { type: "entra" },
+    }, {
+      credential: {
+        getToken: async (scope, options) => {
+          requestedScope = scope;
+          assert.ok(options?.abortSignal);
+          return { token: "test-token", expiresOnTimestamp: Date.now() + 60_000 };
+        },
+      },
+      fetch: async () => success(),
+    });
+    await provider.decide(input());
+    assert.equal(requestedScope, expectedScope);
+  }
+});
+
 test("live catalog and upload return model-selected features and a usable PNG", async () => {
   const image = await sharp({ create: { width: 10, height: 20, channels: 3, background: "#ad8261" } }).png().toBuffer();
   const provider = new FoundryDecisionProvider(config, {

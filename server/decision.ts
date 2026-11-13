@@ -69,6 +69,7 @@ interface FoundryConfig {
 interface FoundryDependencies {
   fetch?: typeof fetch;
   getToken?: (signal: AbortSignal) => Promise<string>;
+  credential?: Pick<DefaultAzureCredential, "getToken">;
 }
 
 function inferenceUrl(endpoint: string): string {
@@ -111,7 +112,8 @@ export class FoundryDecisionProvider implements DecisionProvider {
     this.request = dependencies.fetch ?? fetch;
     const tokenScope = new URL(this.url).hostname.endsWith(".inference.ml.azure.com")
       ? "https://ml.azure.com/.default" : "https://cognitiveservices.azure.com/.default";
-    const credential = config.auth.type === "entra" && !dependencies.getToken ? new DefaultAzureCredential() : null;
+    const credential = config.auth.type === "entra" && !dependencies.getToken
+      ? dependencies.credential ?? new DefaultAzureCredential() : null;
     this.getToken = dependencies.getToken ?? (async signal => {
       if (!credential) throw new Error("Entra credential is unavailable.");
       const token = await credential.getToken(tokenScope, { abortSignal: signal });
