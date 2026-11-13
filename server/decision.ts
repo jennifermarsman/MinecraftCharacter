@@ -75,12 +75,14 @@ function inferenceUrl(endpoint: string): string {
   let url: URL;
   try { url = new URL(endpoint); }
   catch { throw new Error("DECISION_ENDPOINT must be an HTTPS Foundry resource URL."); }
-  const path = "/providers/microsoft/v1/systemone";
+  const isMlEndpoint = url.hostname.endsWith(".inference.ml.azure.com");
+  const path = isMlEndpoint ? "/score" : "/providers/microsoft/v1/systemone";
+  const paths = isMlEndpoint ? ["", "/", "/score", "/score/", "/v1/systemone", "/v1/systemone/"] : ["", "/", path, `${path}/`];
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash ||
-      !["", "/", path, `${path}/`].includes(url.pathname)) {
-    throw new Error("DECISION_ENDPOINT must be an HTTPS Foundry resource URL or its /providers/microsoft/v1/systemone route, without credentials or query parameters.");
+      !paths.includes(url.pathname)) {
+    throw new Error("DECISION_ENDPOINT must be an HTTPS Foundry resource URL or its /providers/microsoft/v1/systemone route, or an Azure ML inference URL with /score or /v1/systemone, without credentials or query parameters.");
   }
-  url.pathname = path;
+  url.pathname = isMlEndpoint && url.pathname.startsWith("/v1/systemone") ? "/v1/systemone" : path;
   return url.toString();
 }
 
@@ -107,10 +109,12 @@ export class FoundryDecisionProvider implements DecisionProvider {
       throw new Error("DECISION_TIMEOUT_MS must be an integer from 1 to 180000.");
     }
     this.request = dependencies.fetch ?? fetch;
+    const tokenScope = new URL(this.url).hostname.endsWith(".inference.ml.azure.com")
+      ? "https://ml.azure.com/.default" : "https://cognitiveservices.azure.com/.default";
     const credential = config.auth.type === "entra" && !dependencies.getToken ? new DefaultAzureCredential() : null;
     this.getToken = dependencies.getToken ?? (async signal => {
       if (!credential) throw new Error("Entra credential is unavailable.");
-      const token = await credential.getToken("https://cognitiveservices.azure.com/.default", { abortSignal: signal });
+      const token = await credential.getToken(tokenScope, { abortSignal: signal });
       return token.token;
     });
   }
@@ -119,7 +123,11 @@ export class FoundryDecisionProvider implements DecisionProvider {
     const signal = AbortSignal.timeout(this.config.timeoutMs);
     const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" };
     if (this.config.auth.type === "api-key") {
-      headers["api-key"] = this.config.auth.key;
+      if (new URL(this.url).hostname.endsWith(".inference.ml.azure.com")) {
+        headers.Authorization = `Bearer ${this.config.auth.key}`;
+      } else {
+        headers["api-key"] = this.config.auth.key;
+      }
     } else {
       try { headers.Authorization = `Bearer ${await this.getToken(signal)}`; }
       catch {

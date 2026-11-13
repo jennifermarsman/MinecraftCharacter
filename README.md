@@ -40,6 +40,8 @@ DECISION_TIMEOUT_MS=60000
 
 `DECISION_ENDPOINT` accepts either the resource root or the full `/providers/microsoft/v1/systemone` route, not a project endpoint. `DECISION_DEPLOYMENT` is your deployment name, not necessarily the model name. Restart the backend after changing configuration.
 
+For Azure ML endpoints ending in `.inference.ml.azure.com`, set `DECISION_ENDPOINT` to the endpoint root or its `/score` or `/v1/systemone` URL. The root uses `/score`. With `DECISION_AUTH=api-key`, the adapter sends the endpoint key as `Authorization: Bearer` instead of Foundry's `api-key` header. Entra authentication for these endpoints uses the `https://ml.azure.com/.default` scope.
+
 **Microsoft Entra authentication:** The backend uses `DefaultAzureCredential` from `@azure/identity`, which refreshes tokens. Run `az login` locally, or configure a managed identity in Azure. The identity needs inference access to the Foundry resource (for example, **Cognitive Services User**). The token scope is `https://cognitiveservices.azure.com/.default`.
 
 **API-key authentication:** If your resource permits local authentication, use:
