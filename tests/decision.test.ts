@@ -1,0 +1,203 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import request from "supertest";
+import sharp from "sharp";
+import { catalog, defaults } from "../server/catalog.js";
+import { createApp } from "../server/app.js";
+import {
+  buildDecisionInput, FoundryDecisionProvider, DecisionServiceError,
+} from "../server/decision.js";
+
+const config = {
+  endpoint: "https://example.services.ai.azure.com/",
+  deployment: "my-decision-1-1",
+  auth: { type: "api-key" as const, key: "test-key-not-a-secret" },
+  timeoutMs: 1000,
+};
+const input = () => buildDecisionInput(Buffer.from("normalized-png"));
+const answers = () => Object.fromEntries(catalog.map(c => [
+  c.id, { type: "choice", choice: defaults[c.id] },
+]));
+const success = () => Response.json({
+  model: "microsoft-decision-1.1",
+  answers: { ...answers(), hairColor: { type: "choice", choice: "pink" } },
+});
+
+test("live request uses supplied assets contract, named choices, deployment, and API-key auth", async () => {
+  const provider = new FoundryDecisionProvider(config, {
+    fetch: async (url, init) => {
+      assert.equal(url, "https://example.services.ai.azure.com/providers/microsoft/v1/systemone");
+      assert.equal(init?.method, "POST");
+      assert.equal(init?.redirect, "error");
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get("api-key"), config.auth.key);
+      assert.equal(headers.get("Authorization"), null);
+      assert.ok(init?.signal);
+      const body = JSON.parse(String(init?.body));
+      assert.equal(body.model, config.deployment);
+      assert.match(body.state, /image:person\.png/);
+      assert.deepEqual(body.assets, {
+        "person.png": { type: "image", format: "png", data_base64: input().image.base64 },
+      });
+      assert.equal(body.image, undefined);
+      assert.deepEqual(body.questions, input().questions);
+      return success();
+    },
+  });
+  const result = await provider.decide(input());
+  assert.equal(result.mode, "live");
+  assert.equal(result.appearance.hairColor, "pink");
+  assert.equal(result.decisions.find(d => d.category === "hairColor")?.choice, "pink");
+  assert.ok(result.decisions.every(d => d.confidence === null));
+});
+
+test("Entra auth obtains a bearer token without forwarding an API key", async () => {
+  let tokenCalls = 0;
+  const provider = new FoundryDecisionProvider({
+    ...config,
+    endpoint: "https://example.services.ai.azure.com/providers/microsoft/v1/systemone/",
+    auth: { type: "entra" },
+  }, {
+    getToken: async signal => { tokenCalls++; assert.ok(signal); return "test-token"; },
+    fetch: async (url, init) => {
+      assert.equal(url, "https://example.services.ai.azure.com/providers/microsoft/v1/systemone");
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get("Authorization"), "Bearer test-token");
+      assert.equal(headers.get("api-key"), null);
+      return success();
+    },
+  });
+  await provider.decide(input());
+  await provider.decide(input());
+  assert.equal(tokenCalls, 2);
+});
+
+test("live catalog and upload return model-selected features and a usable PNG", async () => {
+  const image = await sharp({ create: { width: 10, height: 20, channels: 3, background: "#ad8261" } }).png().toBuffer();
+  const provider = new FoundryDecisionProvider(config, {
+    fetch: async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      const normalized = await sharp(Buffer.from(body.assets["person.png"].data_base64, "base64")).metadata();
+      assert.equal(normalized.format, "png");
+      assert.equal(normalized.width, 10);
+      return success();
+    },
+  });
+  const server = createApp(provider);
+  const metadata = await request(server).get("/api/catalog").expect(200);
+  assert.equal(metadata.body.mode, "live");
+  assert.equal(metadata.body.endpoint, undefined);
+  assert.equal(metadata.body.key, undefined);
+  const response = await request(server).post("/api/generate").attach("image", image, "portrait.png").expect(200);
+  assert.equal(response.body.mode, "live");
+  assert.equal(response.body.appearance.hairColor, "pink");
+  assert.equal((await sharp(Buffer.from(response.body.skin.split(",")[1], "base64")).metadata()).width, 64);
+});
+
+test("missing, mistyped, malformed, and unsupported answers never fall back to demo choices", async () => {
+  const missing = answers();
+  delete missing.hairColor;
+  const payloads: unknown[] = [
+    { answers: missing },
+    { answers: { ...answers(), hairColor: { type: "choice", choice: "invented" } } },
+    { answers: { ...answers(), hairColor: { type: "noul", noul: 0.8 } } },
+    { answers: { ...answers(), hairColor: { type: "choice", choice: 1 } } },
+    { answers: [] }, {}, null,
+  ];
+  for (const payload of payloads) {
+    const provider = new FoundryDecisionProvider(config, { fetch: async () => Response.json(payload) });
+    await assert.rejects(provider.decide(input()), (e: unknown) =>
+      e instanceof DecisionServiceError && e.status === 502);
+  }
+});
+
+test("upstream failures are actionable and do not expose credentials or response bodies", async () => {
+  for (const [status, expected, message] of [
+    [401, 503, /denied access/], [403, 503, /denied access/],
+    [429, 503, /quota/], [500, 502, /HTTP 500/], [400, 502, /image assets/],
+  ] as const) {
+    let attempts = 0;
+    const provider = new FoundryDecisionProvider(config, { fetch: async () => {
+      attempts++;
+      return new Response("sensitive upstream body", { status });
+    } });
+    await assert.rejects(provider.decide(input()), (e: unknown) => {
+      assert.ok(e instanceof DecisionServiceError);
+      assert.equal(e.status, expected);
+      assert.match(e.message, message);
+      assert.doesNotMatch(e.message, /sensitive|test-key/);
+      return true;
+    });
+    assert.equal(attempts, 1);
+  }
+  const authFailure = new FoundryDecisionProvider({ ...config, auth: { type: "entra" } }, {
+    getToken: async () => { throw new Error("sensitive token details"); },
+    fetch: async () => { assert.fail("Should not call inference without credentials"); },
+  });
+  await assert.rejects(authFailure.decide(input()), /Could not authenticate/);
+  const invalidJSON = new FoundryDecisionProvider(config, { fetch: async () => new Response("{invalid") });
+  await assert.rejects(invalidJSON.decide(input()), /unreadable response/);
+  const networkError = new FoundryDecisionProvider(config, { fetch: async () => { throw new Error("private network details"); } });
+  await assert.rejects(networkError.decide(input()), /Could not reach/);
+});
+
+test("HTTP API preserves actionable live errors without producing a skin", async () => {
+  const provider = new FoundryDecisionProvider(config, {
+    fetch: async () => new Response("private upstream error", { status: 429 }),
+  });
+  const image = await sharp({ create: { width: 4, height: 4, channels: 3, background: "#fff" } }).png().toBuffer();
+  const response = await request(createApp(provider)).post("/api/generate").attach("image", image, "portrait.png").expect(503);
+  assert.match(response.body.error, /quota/);
+  assert.equal(response.body.skin, undefined);
+});
+
+test("rejected image assets report the route contract mismatch without exposing upstream details", async () => {
+  const provider = new FoundryDecisionProvider(config, {
+    fetch: async () => Response.json({
+      error: {
+        code: "unrecognized_request_argument",
+        message: "Unrecognized request argument supplied: assets",
+        details: "private diagnostic details",
+      },
+    }, { status: 400 }),
+  });
+  await assert.rejects(provider.decide(input()), (e: unknown) => {
+    assert.ok(e instanceof DecisionServiceError);
+    assert.equal(e.status, 502);
+    assert.match(e.message, /rejected the assets field/);
+    assert.match(e.message, /resource and endpoint/);
+    assert.doesNotMatch(e.message, /private diagnostic/);
+    return true;
+  });
+  const differentError = new FoundryDecisionProvider(config, {
+    fetch: async () => Response.json({
+      error: { code: "unrecognized_request_argument", message: "Unrecognized request argument supplied: other" },
+    }, { status: 400 }),
+  });
+  await assert.rejects(differentError.decide(input()), /returned HTTP 400/);
+});
+
+test("request deadline cancels inference instead of leaving generation running", async () => {
+  const provider = new FoundryDecisionProvider({ ...config, timeoutMs: 5 }, {
+    fetch: async (_url, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+    }),
+  });
+  // AbortSignal.timeout is unref'd; keep the test process alive until its callback runs.
+  const keepAlive = setTimeout(() => {}, 1000);
+  try {
+    await assert.rejects(provider.decide(input()), (e: unknown) =>
+      e instanceof DecisionServiceError && e.status === 504);
+  } finally { clearTimeout(keepAlive); }
+});
+
+test("configuration rejects invalid routes, credentials, deployment, and deadlines", () => {
+  for (const endpoint of ["", "http://example.com", "https://example.com/api/projects/test", "https://example.com/?key=secret", "https://user:pass@example.com"]) {
+    assert.throws(() => new FoundryDecisionProvider({ ...config, endpoint }), /DECISION_ENDPOINT/);
+  }
+  assert.throws(() => new FoundryDecisionProvider({ ...config, deployment: "" }), /DECISION_DEPLOYMENT/);
+  assert.throws(() => new FoundryDecisionProvider({ ...config, auth: { type: "api-key", key: "" } }), /DECISION_API_KEY/);
+  for (const timeoutMs of [0, -1, 180001, NaN, 1.5]) {
+    assert.throws(() => new FoundryDecisionProvider({ ...config, timeoutMs }), /DECISION_TIMEOUT_MS/);
+  }
+});

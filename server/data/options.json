@@ -1,0 +1,140 @@
+[
+  {
+    "id": "skinTone", "label": "Skin palette", "question": "Which palette best matches the visible skin pixels? Match appearance only, not ethnicity.", "default": "warm",
+    "options": [
+      {"id":"porcelain","label":"Porcelain","description":"Very light neutral beige","color":"#f4d9c6"},
+      {"id":"fair","label":"Fair","description":"Light peach beige","color":"#eec3a4"},
+      {"id":"warm","label":"Warm","description":"Warm medium peach","color":"#dba27d"},
+      {"id":"golden","label":"Golden","description":"Golden tan","color":"#c68b59"},
+      {"id":"olive","label":"Olive","description":"Medium olive brown","color":"#b58a62"},
+      {"id":"brown","label":"Brown","description":"Rich medium brown","color":"#956344"},
+      {"id":"deep","label":"Deep","description":"Deep warm brown","color":"#69432f"},
+      {"id":"espresso","label":"Espresso","description":"Very deep brown","color":"#432d26"}
+    ]
+  },
+  {
+    "id":"hairColor","label":"Hair color","question":"Which hair color is the closest visible match?","default":"chestnut",
+    "options":[
+      {"id":"black","label":"Black","description":"Near-black hair","color":"#242127"},
+      {"id":"dark-brown","label":"Dark brown","description":"Deep chocolate hair","color":"#493026"},
+      {"id":"chestnut","label":"Chestnut","description":"Warm medium brown hair","color":"#754a32"},
+      {"id":"auburn","label":"Auburn","description":"Reddish brown hair","color":"#93442f"},
+      {"id":"ginger","label":"Ginger","description":"Copper red hair","color":"#c57036"},
+      {"id":"blonde","label":"Blonde","description":"Golden blonde hair","color":"#d9b866"},
+      {"id":"platinum","label":"Platinum","description":"Very light blonde hair","color":"#ede0b9"},
+      {"id":"gray","label":"Gray","description":"Silver gray hair","color":"#a8a8ad"},
+      {"id":"white","label":"White","description":"White hair","color":"#e7e5df"},
+      {"id":"pink","label":"Pink","description":"Dyed pink hair","color":"#de7ba4"},
+      {"id":"blue","label":"Blue","description":"Dyed blue hair","color":"#477ac2"},
+      {"id":"purple","label":"Purple","description":"Dyed purple hair","color":"#9061bc"}
+    ]
+  },
+  {
+    "id":"hairLength","label":"Hair length","question":"How far does the visible hair extend?","default":"short",
+    "options":[
+      {"id":"bald","label":"None","description":"No visible hair"},
+      {"id":"short","label":"Short","description":"Above the ears or around ear length"},
+      {"id":"medium","label":"Medium","description":"Extends to the neck or shoulders"},
+      {"id":"long","label":"Long","description":"Extends below the shoulders"}
+    ]
+  },
+  {
+    "id":"hairStyle","label":"Hair style","question":"Which hair silhouette most closely matches?","default":"side-part",
+    "options":[
+      {"id":"straight","label":"Straight","description":"Smooth straight hair"},
+      {"id":"side-part","label":"Side part","description":"Hair swept to one side"},
+      {"id":"bangs","label":"Bangs","description":"Fringe across the forehead"},
+      {"id":"curly","label":"Curly","description":"Textured curls"},
+      {"id":"wavy","label":"Wavy","description":"Loose waves"},
+      {"id":"braids","label":"Braids","description":"Braided strands"},
+      {"id":"ponytail","label":"Ponytail","description":"Hair tied at the back"},
+      {"id":"bun","label":"Bun","description":"Hair gathered into a bun"}
+    ]
+  },
+  {
+    "id":"eyeColor","label":"Eye color","question":"Which eye color is visible? Choose unknown if too small or obscured.","default":"brown",
+    "options":[
+      {"id":"brown","label":"Brown","description":"Brown irises","color":"#64432b"},
+      {"id":"blue","label":"Blue","description":"Blue irises","color":"#4d8cbd"},
+      {"id":"green","label":"Green","description":"Green irises","color":"#578358"},
+      {"id":"hazel","label":"Hazel","description":"Golden green-brown irises","color":"#918044"},
+      {"id":"gray","label":"Gray","description":"Gray irises","color":"#82909b"},
+      {"id":"unknown","label":"Not visible","description":"Cannot determine from the photograph","color":"#594737"}
+    ]
+  },
+  {
+    "id":"topColor","label":"Top color","question":"What is the dominant color of the visible top?","default":"sage",
+    "options":[
+      {"id":"sage","label":"Sage","description":"Muted sage green","color":"#749180"},
+      {"id":"green","label":"Forest","description":"Dark forest green","color":"#355c49"},
+      {"id":"blue","label":"Blue","description":"Medium blue","color":"#4d7bb5"},
+      {"id":"navy","label":"Navy","description":"Dark navy blue","color":"#293c5b"},
+      {"id":"red","label":"Red","description":"Brick red","color":"#b74943"},
+      {"id":"pink","label":"Pink","description":"Soft pink","color":"#d58aa2"},
+      {"id":"purple","label":"Purple","description":"Violet purple","color":"#8565a1"},
+      {"id":"yellow","label":"Yellow","description":"Mustard yellow","color":"#d7b34d"},
+      {"id":"orange","label":"Orange","description":"Warm orange","color":"#d28445"},
+      {"id":"white","label":"White","description":"Off-white","color":"#ece9e1"},
+      {"id":"gray","label":"Gray","description":"Medium gray","color":"#929397"},
+      {"id":"black","label":"Black","description":"Near black","color":"#292a30"}
+    ]
+  },
+  {
+    "id":"sleeves","label":"Sleeves","question":"What is the sleeve length of the visible top?","default":"short",
+    "options":[
+      {"id":"sleeveless","label":"Sleeveless","description":"Bare arms starting at shoulders"},
+      {"id":"short","label":"Short sleeves","description":"Sleeves end above elbow"},
+      {"id":"long","label":"Long sleeves","description":"Sleeves extend to wrists"}
+    ]
+  },
+  {
+    "id":"topStyle","label":"Top style","question":"Which top style best matches?","default":"tshirt",
+    "options":[
+      {"id":"tshirt","label":"T-shirt","description":"Plain crew-neck top"},
+      {"id":"shirt","label":"Button shirt","description":"Collared button-front shirt"},
+      {"id":"hoodie","label":"Hoodie","description":"Hooded top with drawstrings and pocket"},
+      {"id":"striped","label":"Striped","description":"Horizontal striped top"}
+    ]
+  },
+  {
+    "id":"bottomStyle","label":"Bottom style","question":"Is the person wearing pants, shorts, a short skirt, or a long skirt? Choose unknown if not visible.","default":"pants",
+    "options":[
+      {"id":"pants","label":"Pants","description":"Full-length trousers"},
+      {"id":"shorts","label":"Shorts","description":"Short trousers ending above the knee"},
+      {"id":"short-skirt","label":"Short skirt","description":"Skirt ending above the knee"},
+      {"id":"long-skirt","label":"Long skirt","description":"Skirt extending toward the ankles"},
+      {"id":"unknown","label":"Not visible","description":"Lower body outside the image"}
+    ]
+  },
+  {
+    "id":"bottomColor","label":"Bottom color","question":"What is the dominant visible bottom color?","default":"denim",
+    "options":[
+      {"id":"denim","label":"Denim","description":"Denim blue","color":"#456080"},
+      {"id":"black","label":"Black","description":"Near black","color":"#2b2c33"},
+      {"id":"navy","label":"Navy","description":"Navy blue","color":"#303c55"},
+      {"id":"gray","label":"Gray","description":"Medium gray","color":"#777b85"},
+      {"id":"khaki","label":"Khaki","description":"Sand beige","color":"#b7a079"},
+      {"id":"white","label":"White","description":"Off-white","color":"#e3dfd5"},
+      {"id":"green","label":"Green","description":"Olive green","color":"#69744d"},
+      {"id":"pink","label":"Pink","description":"Dusty pink","color":"#bc7f93"}
+    ]
+  },
+  {
+    "id":"shoeColor","label":"Shoes","question":"Which shoe color is closest? Choose unknown if shoes are not visible.","default":"white",
+    "options":[
+      {"id":"white","label":"White","description":"White shoes","color":"#e5e3dd"},
+      {"id":"black","label":"Black","description":"Black shoes","color":"#29292d"},
+      {"id":"brown","label":"Brown","description":"Brown shoes or boots","color":"#694936"},
+      {"id":"red","label":"Red","description":"Red shoes","color":"#b35048"},
+      {"id":"unknown","label":"Not visible","description":"Shoes not shown","color":"#48484d"}
+    ]
+  },
+  {
+    "id":"glasses","label":"Glasses","question":"Are glasses visibly worn?","default":"none",
+    "options":[
+      {"id":"none","label":"None","description":"No visible glasses"},
+      {"id":"regular","label":"Glasses","description":"Clear lenses with dark frames"},
+      {"id":"sun","label":"Sunglasses","description":"Dark sunglasses"}
+    ]
+  }
+]
