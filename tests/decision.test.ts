@@ -51,6 +51,27 @@ test("live request uses supplied assets contract, named choices, deployment, and
   assert.ok(result.decisions.every(d => d.confidence === null));
 });
 
+test("Azure ML endpoints use the scoring route and bearer-key authentication", async () => {
+  for (const [path, expectedPath] of [
+    ["", "/score"], ["/", "/score"], ["/score", "/score"], ["/score/", "/score"],
+    ["/v1/systemone", "/v1/systemone"], ["/v1/systemone/", "/v1/systemone"],
+  ]) {
+    const provider = new FoundryDecisionProvider({
+      ...config, endpoint: `https://example.centralus.inference.ml.azure.com${path}`,
+    }, {
+      fetch: async (url, init) => {
+        assert.equal(url, `https://example.centralus.inference.ml.azure.com${expectedPath}`);
+        const headers = new Headers(init?.headers);
+        assert.equal(headers.get("Authorization"), `Bearer ${config.auth.key}`);
+        assert.equal(headers.get("api-key"), null);
+        assert.equal(init?.redirect, "error");
+        return success();
+      },
+    });
+    assert.equal((await provider.decide(input())).mode, "live");
+  }
+});
+
 test("Entra auth obtains a bearer token without forwarding an API key", async () => {
   let tokenCalls = 0;
   const provider = new FoundryDecisionProvider({
@@ -70,6 +91,29 @@ test("Entra auth obtains a bearer token without forwarding an API key", async ()
   await provider.decide(input());
   await provider.decide(input());
   assert.equal(tokenCalls, 2);
+});
+
+test("Entra auth requests the endpoint-specific scope from the credential", async () => {
+  for (const [endpoint, expectedScope] of [
+    ["https://example.services.ai.azure.com/", "https://cognitiveservices.azure.com/.default"],
+    ["https://example.centralus.inference.ml.azure.com/", "https://ml.azure.com/.default"],
+  ]) {
+    let requestedScope: string | string[] | undefined;
+    const provider = new FoundryDecisionProvider({
+      ...config, endpoint, auth: { type: "entra" },
+    }, {
+      credential: {
+        getToken: async (scope, options) => {
+          requestedScope = scope;
+          assert.ok(options?.abortSignal);
+          return { token: "test-token", expiresOnTimestamp: Date.now() + 60_000 };
+        },
+      },
+      fetch: async () => success(),
+    });
+    await provider.decide(input());
+    assert.equal(requestedScope, expectedScope);
+  }
 });
 
 test("live catalog and upload return model-selected features and a usable PNG", async () => {
@@ -192,7 +236,7 @@ test("request deadline cancels inference instead of leaving generation running",
 });
 
 test("configuration rejects invalid routes, credentials, deployment, and deadlines", () => {
-  for (const endpoint of ["", "http://example.com", "https://example.com/api/projects/test", "https://example.com/?key=secret", "https://user:pass@example.com"]) {
+  for (const endpoint of ["", "http://example.com", "https://example.com/api/projects/test", "https://example.com/?key=secret", "https://user:pass@example.com", "https://example.com/score", "https://example.centralus.inference.ml.azure.com/providers/microsoft/v1/systemone", "https://example.centralus.inference.ml.azure.com/score?key=secret"]) {
     assert.throws(() => new FoundryDecisionProvider({ ...config, endpoint }), /DECISION_ENDPOINT/);
   }
   assert.throws(() => new FoundryDecisionProvider({ ...config, deployment: "" }), /DECISION_DEPLOYMENT/);
