@@ -90,6 +90,15 @@ export async function renderSkin(input: Appearance): Promise<Buffer> {
     for (const y of [23, 26, 29]) paint({ x: 24, y, w: 1, h: 1 }, "#e5ded2");
     paint({ x: 21, y: 20, w: 2, h: 2 }, top, 20);
     paint({ x: 25, y: 20, w: 2, h: 2 }, top, 20);
+  } else if (a.topStyle === "blazer") {
+    paint({ x: 23, y: 21, w: 2, h: 5 }, "#e5ded2");
+    for (let y = 0; y < 4; y++) {
+      paint({ x: 22 + Math.floor(y / 2), y: 21 + y, w: 1, h: 1 }, top, 24);
+      paint({ x: 25 - Math.floor(y / 2), y: 21 + y, w: 1, h: 1 }, top, 24);
+    }
+    paint({ x: 23, y: 26, w: 1, h: 6 }, top, -22);
+    for (const y of [26, 29]) paint({ x: 24, y, w: 1, h: 1 }, "#e5ded2");
+    for (const x of [20, 26]) paint({ x, y: 28, w: 2, h: 1 }, top, -22);
   } else if (a.topStyle === "hoodie") {
     paint({ x: 22, y: 22, w: 1, h: 3 }, "#e5ded2");
     paint({ x: 25, y: 22, w: 1, h: 3 }, "#e5ded2");

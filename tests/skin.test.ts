@@ -43,6 +43,14 @@ test("every supported option renders; meaningful changes produce different textu
   }
 });
 
+test("olive and green render distinct colors for each visible bottom style", async () => {
+  for (const bottomStyle of ["pants", "shorts", "short-skirt", "long-skirt"]) {
+    const green = await renderSkin({ ...defaults, bottomStyle, bottomColor: "green" });
+    const olive = await renderSkin({ ...defaults, bottomStyle, bottomColor: "olive" });
+    assert.notDeepEqual(olive, green, `${bottomStyle} should distinguish olive from green`);
+  }
+});
+
 test("all hair styles yield distinct long-hair textures", async () => {
   const textures = await Promise.all(catalog.find(c => c.id === "hairStyle")!.options.map(o =>
     renderSkin({ ...defaults, hairLength: "long", hairStyle: o.id }).then(b => b.toString("base64")),
@@ -50,9 +58,28 @@ test("all hair styles yield distinct long-hair textures", async () => {
   assert.equal(new Set(textures).size, textures.length);
 });
 
+test("blazer has distinct lapels, shirt, and pockets and uses the selected coat color", async () => {
+  const render = async (topColor: string, topStyle = "blazer") =>
+    sharp(await renderSkin({ ...defaults, topColor, topStyle })).raw().toBuffer();
+  const blue = await render("blue");
+  const black = await render("black");
+  const plain = await render("blue", "tshirt");
+  const pixel = (data: Buffer, x: number, y: number) => data.subarray((y * 64 + x) * 4, (y * 64 + x + 1) * 4);
+  assert.deepEqual(pixel(blue, 23, 21), pixel(black, 23, 21), "undershirt stays light regardless of coat color");
+  assert.notDeepEqual(pixel(blue, 20, 25), pixel(black, 20, 25), "coat uses the selected top color");
+  for (const [x, y] of [[22, 21], [23, 21], [24, 26], [20, 28]]) {
+    assert.notDeepEqual(pixel(blue, x, y), pixel(plain, x, y), "lapels, shirt, buttons, and pockets differ from a plain top");
+  }
+  const textures = await Promise.all(catalog.find(c => c.id === "topStyle")!.options.map(o =>
+    render("blue", o.id).then(b => b.toString("base64")),
+  ));
+  assert.equal(new Set(textures).size, textures.length);
+});
+
 test("appearance validation rejects missing, additional, and unknown choices", () => {
   assert.deepEqual(validateAppearance(defaults), defaults);
   assert.throws(() => validateAppearance({ ...defaults, hairStyle: "injected" }));
+  assert.throws(() => validateAppearance({ ...defaults, bottomStyle: "tutu" }));
   assert.throws(() => validateAppearance({ hairColor: "black" }));
   assert.throws(() => validateAppearance({ ...defaults, extra: "unexpected" }));
 });

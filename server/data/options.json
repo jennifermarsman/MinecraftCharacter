@@ -92,6 +92,7 @@
     "options":[
       {"id":"tshirt","label":"T-shirt","description":"Plain crew-neck top"},
       {"id":"shirt","label":"Button shirt","description":"Collared button-front shirt"},
+      {"id":"blazer","label":"Suit coat / blazer","description":"Tailored suit jacket or blazer with lapels over a shirt"},
       {"id":"hoodie","label":"Hoodie","description":"Hooded top with drawstrings and pocket"},
       {"id":"striped","label":"Striped","description":"Horizontal striped top"}
     ]
@@ -115,7 +116,8 @@
       {"id":"gray","label":"Gray","description":"Medium gray","color":"#777b85"},
       {"id":"khaki","label":"Khaki","description":"Sand beige","color":"#b7a079"},
       {"id":"white","label":"White","description":"Off-white","color":"#e3dfd5"},
-      {"id":"green","label":"Green","description":"Olive green","color":"#69744d"},
+      {"id":"green","label":"Green","description":"Bright Kelly green","color":"#4cbb17"},
+      {"id":"olive","label":"Olive green","description":"Yellow-toned olive green","color":"#808000"},
       {"id":"pink","label":"Pink","description":"Dusty pink","color":"#bc7f93"}
     ]
   },

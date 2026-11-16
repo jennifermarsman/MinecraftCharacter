@@ -17,7 +17,12 @@ test("upload, demo build, customization, and PNG download", async ({ page }) => 
   await expect(page.getByRole("status")).toContainText("your photo has not been analyzed");
   await page.getByLabel("Hair color", { exact: true }).selectOption("pink");
   await page.getByLabel("Bottom style", { exact: true }).selectOption("long-skirt");
+  const previousSkin = await page.getByRole("link", { name: "Download skin" }).getAttribute("href");
+  await page.getByLabel("Top style", { exact: true }).selectOption({ label: "Suit coat / blazer" });
+  await expect(page.getByLabel("Top style", { exact: true })).toHaveValue("blazer");
+  await expect(page.getByRole("link", { name: "Download skin" })).not.toHaveAttribute("href", previousSkin!);
   await expect(page.getByRole("link", { name: "Download skin" })).toHaveAttribute("aria-disabled", "false");
+  await expect(page.getByLabel("Bottom style", { exact: true }).getByRole("option", { name: "Tutu", exact: true })).toHaveCount(0);
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("link", { name: "Download skin" }).click();
   const download = await downloadPromise;
