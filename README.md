@@ -22,13 +22,15 @@ npm start
 
 Open `http://127.0.0.1:3001`. The backend serves the compiled frontend. `HOST` and `PORT` configure the backend; the development proxy expects port 3001. Bind to a non-loopback address only when intentionally exposing the app.
 
-## Decision 1.1 photo analysis
+## Decision 1.1 live photo analysis
 
-The live adapter uses the image contract supplied for this project: base64 image data in `assets`, with `image:<name>` referenced in `state`. It sends all 12 catalog-driven `choice` questions in one JSON request to `/providers/microsoft/v1/systemone`.
+**Version requirement:** Microsoft Decision 1.1 adds multimodal image processing. Microsoft Decision 1 supports text or JSON input but does not support image processing, so this app's live photo analysis requires Decision 1.1.
+
+The live adapter sends base64 image data in `assets`, with `image:<name>` referenced in `state`, alongside all 12 catalog-driven `choice` questions in one JSON request to `/providers/microsoft/v1/systemone`. Microsoft's [public Microsoft-Decision-1 documentation](https://learn.microsoft.com/en-us/azure/foundry/foundry-models/how-to/use-foundry-models-microsoft-decision) describes this route and the typed-question structure for text or JSON input. 
 
 The default `DECISION_MODE=demo` returns a fixed, clearly labeled preset. It does not analyze the photo or invent confidence scores. The manual editor and PNG generation work independently. `DECISION_MODE=placeholder` also keeps the manual editor available, but explicitly returns HTTP 503 when photo analysis is requested.
 
-To enable live analysis, deploy an **image-capable Microsoft Decision 1.1** model and set these values in `.env`:
+To enable live analysis, deploy a **Microsoft Decision 1.1** model and set these values in `.env`:
 
 ```dotenv
 DECISION_MODE=live
@@ -76,7 +78,8 @@ The request contains this structure, with `questions` generated from `server/dat
 }
 ```
 
-Each response must include `answers.<category>.type: "choice"` and a `choice` ID from that category. Missing answers, unknown choices, malformed JSON, authentication errors, quota errors, network errors, and timeouts are surfaced explicitly; the adapter never silently substitutes default selections. Choice confidence remains `null` because the supplied image example does not specify the probability field schema.
+Each response must include `answers.<category>.type: "choice"` and a `choice` ID from that category. Missing answers, unknown choices, malformed JSON, authentication errors, quota errors, network errors, and timeouts are surfaced explicitly; the adapter never silently substitutes default selections. Choice confidence remains `null` because this adapter does not parse probability fields. 
+
 
 The request deadline defaults to 60 seconds (maximum 180 seconds), covers authentication/inference, and aborts slow requests. Requests are not automatically retried, avoiding duplicate inference submissions. HTTP redirects are rejected rather than forwarding credentials or photos.
 
@@ -104,6 +107,6 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The tests cover upload validation, image normalization, demo/placeholder/live modes, the supplied image request contract, both authentication paths, invalid model answers, upstream errors and deadlines, catalog-driven questions, UV opacity/transparency, appearance edits, PNG downloads, and the desktop/mobile UI. Live API tests use mocked responses and do not send images to Azure. An actual deployment and credentials are required to verify real model inference.
+The tests cover upload validation, image normalization, demo/placeholder/live modes, the adapter's image request format, both authentication paths, invalid model answers, upstream errors and deadlines, catalog-driven questions, UV opacity/transparency, appearance edits, PNG downloads, and the desktop/mobile UI. Live API tests use mocked responses and do not send images to Azure. These tests do not establish service compatibility; an actual compatible deployment and credentials are required to verify real model inference.
 
 Not affiliated with Mojang or Microsoft.
