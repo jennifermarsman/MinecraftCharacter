@@ -195,6 +195,82 @@ test("HTTP API preserves actionable live errors without producing a skin", async
   assert.equal(response.body.skin, undefined);
 });
 
+test("Azure ML 424 reports the underlying model failure without exposing arbitrary diagnostics", async () => {
+  for (const [status, expected] of [
+    ["400", /model rejected the request/],
+    ["404", /scoring URI/],
+    ["401", /service-side credentials/],
+    ["403", /service-side credentials/],
+    ["429", /quota/],
+    ["500", /inference logs and health/],
+    [null, /inference logs and health/],
+    ["private status", /inference logs and health/],
+  ] as const) {
+    const provider = new FoundryDecisionProvider(config, {
+      fetch: async () => new Response("private upstream diagnostic", {
+        status: 424,
+        headers: {
+          ...(status ? { "ms-azureml-model-error-statuscode": status } : {}),
+          "ms-azureml-model-error-reason": "private reason",
+          "x-request-id": "f8c1493e-ed0a-4361-afd8-95e3e7f6242f",
+        },
+      }),
+    });
+    await assert.rejects(provider.decide(input()), (error: unknown) => {
+      assert.ok(error instanceof DecisionServiceError);
+      assert.equal(error.status, 502);
+      assert.match(error.message, /HTTP 424/);
+      if (status && /^[45]\d{2}$/.test(status)) assert.match(error.message, new RegExp(`model HTTP ${status}`));
+      assert.match(error.message, expected);
+      assert.match(error.message, /Request ID: f8c1493e-ed0a-4361-afd8-95e3e7f6242f/);
+      assert.doesNotMatch(error.message, /private|test-key/);
+      return true;
+    });
+  }
+});
+
+test("Azure ML wrapped image errors surface minimum dimensions and preserve failed generation", async () => {
+  const provider = new FoundryDecisionProvider(config, {
+    fetch: async () => Response.json({
+      error: "invalid_image",
+      message: "asset 'person.png' is 8x8; each side must be at least 280 pixels",
+      detail: "private diagnostics",
+    }, { status: 424, headers: { "ms-azureml-model-error-statuscode": "400" } }),
+  });
+  const image = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#fff" } }).png().toBuffer();
+  const response = await request(createApp(provider)).post("/api/generate").attach("image", image, "portrait.png").expect(502);
+  assert.match(response.body.error, /each side must be at least 280 pixels/);
+  assert.match(response.body.error, /Choose a larger photo/);
+  assert.doesNotMatch(response.body.error, /private/);
+  assert.equal(response.body.skin, undefined);
+});
+
+test("unrecognized or unreadable wrapped model errors retain HTTP 424 without leaking the body", async () => {
+  for (const body of [
+    "{invalid",
+    JSON.stringify({ error: "invalid_image", message: "private diagnostic" }),
+    JSON.stringify({ error: "other", message: "asset 'person.png' is 8x8; each side must be at least 280 pixels" }),
+  ]) {
+    const provider = new FoundryDecisionProvider(config, {
+      fetch: async () => new Response(body, {
+        status: 424,
+        headers: {
+          "Content-Type": "application/json",
+          "ms-azureml-model-error-statuscode": "400",
+          "x-request-id": "private request id",
+        },
+      }),
+    });
+    await assert.rejects(provider.decide(input()), (error: unknown) => {
+      assert.ok(error instanceof DecisionServiceError);
+      assert.match(error.message, /HTTP 424; model HTTP 400/);
+      assert.match(error.message, /model rejected the request/);
+      assert.doesNotMatch(error.message, /private|280|unreadable/);
+      return true;
+    });
+  }
+});
+
 test("rejected image assets report the route contract mismatch without exposing upstream details", async () => {
   const provider = new FoundryDecisionProvider(config, {
     fetch: async () => Response.json({

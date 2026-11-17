@@ -93,6 +93,50 @@ const responseSchema = z.object({
 const rejectionSchema = z.object({
   error: z.object({ code: z.string(), message: z.string() }),
 });
+const imageRejectionSchema = z.object({
+  error: z.literal("invalid_image"),
+  message: z.string(),
+});
+
+async function modelErrorMessage(response: Response): Promise<string> {
+  const status = response.headers.get("ms-azureml-model-error-statuscode");
+  const modelStatus = status && /^[45]\d{2}$/.test(status) ? status : null;
+  let message = `Decision deployment failed (HTTP 424${modelStatus ? `; model HTTP ${modelStatus}` : ""}).`;
+  if (modelStatus === "400") {
+    message += " The model rejected the request. Check the deployment's image and request requirements.";
+    if (response.headers.get("content-type")?.includes("application/json")) {
+      const text = await response.text();
+      let body: unknown;
+      try { body = JSON.parse(text); }
+      catch (error) { if (!(error instanceof SyntaxError)) throw error; }
+      const rejection = imageRejectionSchema.safeParse(body);
+      const dimensions = rejection.success
+        ? /^asset 'person\.png' is (\d{1,5})x(\d{1,5}); each side must be at least (\d{1,5}) pixels$/.exec(rejection.data.message)
+        : null;
+      if (dimensions) {
+        message = `Decision deployment rejected the image (HTTP 424; model HTTP 400). The image is ${dimensions[1]}x${dimensions[2]} pixels; each side must be at least ${dimensions[3]} pixels. Choose a larger photo.`;
+      }
+    } else {
+      await response.body?.cancel();
+    }
+  } else {
+    await response.body?.cancel();
+    if (modelStatus === "404") {
+      message += " The model route was not found. Check the endpoint's scoring URI.";
+    } else if (modelStatus === "401" || modelStatus === "403") {
+      message += " The deployment's backend denied access. Check its service-side credentials and permissions.";
+    } else if (modelStatus === "429") {
+      message += " The model is busy or out of quota. Please try again later.";
+    } else {
+      message += " Check the deployment's inference logs and health. This status alone does not establish an image-format or client-login problem.";
+    }
+  }
+  const requestId = response.headers.get("x-request-id");
+  if (requestId && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(requestId)) {
+    message += ` Request ID: ${requestId}.`;
+  }
+  return message;
+}
 
 export class FoundryDecisionProvider implements DecisionProvider {
   readonly mode = "live";
@@ -152,6 +196,9 @@ export class FoundryDecisionProvider implements DecisionProvider {
         }),
       });
       if (!response.ok) {
+        if (response.status === 424) {
+          throw new DecisionServiceError(await modelErrorMessage(response), 502);
+        }
         if (response.status === 400 && response.headers.get("content-type")?.includes("application/json")) {
           const rejection = rejectionSchema.safeParse(await response.json());
           if (rejection.success && rejection.data.error.code === "unrecognized_request_argument" &&
